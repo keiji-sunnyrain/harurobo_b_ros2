@@ -79,18 +79,19 @@ class CameraNode(Node):
     def callback(self,msg_rx):
         """ サブスクライバコールバック """
         self.rx_data = msg_rx.data
-        self.get_logger().info(f"Receive: {rx_data}")
+        self.get_logger().info(f"Receive: {self.rx_data}")
         self.run_cv()
         self.tx_data = UInt16()
-        if self.detections[0]['color'] == "Blue":
-            self.tx_data.data |= 0b0000000000000001
-        elif self.detections[0]['color'] == "Orange":
-            self.tx_data.data |= 0b0000000000000010
-        elif self.detections[0]['color'] == "Yellow":
-            self.tx_data.data |= 0b0000000000000011
-        else:
-            self.tx_data.data |= 0b0000000000000000
-        self.publisher.publish(tx_data)
+        for i in  range(len(self.detections)):
+            if self.detections[i]['color'] == "Blue":
+                self.tx_data.data |= 0b0000000000000001
+            elif self.detections[i]['color'] == "Orange":
+                self.tx_data.data |= 0b0000000000000010
+            elif self.detections[i]['color'] == "Yellow":
+                self.tx_data.data |= 0b0000000000000011
+            else:
+                self.tx_data.data |= 0b0000000000000000
+        self.publisher.publish(self.tx_data)
 
     def run_cv(self):
         """フレーム取得・処理"""
@@ -106,7 +107,7 @@ class CameraNode(Node):
         img_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
         # 検出結果リスト
-        detections = []
+        self.detections = []
 
         # 各色について検出
         for color, (lower, upper) in self.color_ranges.items():
@@ -141,14 +142,13 @@ class CameraNode(Node):
 
                 center = (int(x), int(y))
 
-                detections.append({
+                self.detections.append({
                     'color': color,
                     'x': int(x),
                     'y': int(y),
                     'radius': radius,
                     'area': int(area),
                 })
-
                 # 描画
                 draw_color = self.color_bgr[color]
                 cv2.circle(frame, center, radius, draw_color, 3)

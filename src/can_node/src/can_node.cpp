@@ -36,7 +36,7 @@ void Can_Node::can_thread(){
   printf("setted!\r\n");
   std_msgs::msg::UInt16 tx_msg;
   while (1){
-    std::this_thread::sleep_for(std::chrono::microseconds(500));
+    std::this_thread::sleep_for(std::chrono::microseconds(1000));
     tx_msg.data=0x00FF;
     publisher_->publish(tx_msg);
     /* code */
@@ -45,7 +45,20 @@ void Can_Node::can_thread(){
 
 void Can_Node::callback(const std_msgs::msg::UInt16::SharedPtr msg){
   uint16_t rx_data = msg->data;
-  printf("%d\r\n",(int)rx_data);
+  switch (rx_data){
+  case 0x000001:
+    printf("B\r\n");
+    break;
+  case 0x000010:
+    printf("O\r\n");
+    break;
+  case 0x000011:
+    printf("Y\r\n");
+    break;
+  default:
+    break;
+  }
+  // printf("%d\r\n",(int)rx_data);
 }
 
 void Can_Node::rpi_spi_set(){
@@ -114,6 +127,7 @@ void Can_Node::MCP2517FD_set(){
   tx_data[0] = 0x00;
   ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);//リセット
   printf("set_start\r\n");
+  std::this_thread::sleep_for(std::chrono::seconds(2));
   do {
     MCP2517FD_spi_read(C1CON,4);
   }while (((read_data[2] >> 5) & 0x07) != 0b100); //OPMOD確認

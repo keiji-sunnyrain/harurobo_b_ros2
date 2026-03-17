@@ -44,7 +44,8 @@ class CameraNode(Node):
         # 色範囲定義 (HSV) - ColorDetect.pyと同じ
         self.color_ranges = {
             "Blue":   [(90, 50, 50), (130, 255, 255)],
-            "Orange": [(0, 150, 150), (15, 255, 255)],
+            # "Orange": [(0, 150, 150), (15, 255, 255)],
+            "Orange": [(0, 120, 100), (20, 255, 255)],
             "Yellow": [(15, 150, 150), (35, 255, 255)],
         }
 
@@ -82,15 +83,24 @@ class CameraNode(Node):
         self.get_logger().info(f"Receive: {self.rx_data}")
         self.run_cv()
         self.tx_data = UInt16()
-        for i in  range(len(self.detections)):
-            if self.detections[i]['color'] == "Blue":
-                self.tx_data.data |= 0b0000000000000001
-            elif self.detections[i]['color'] == "Orange":
-                self.tx_data.data |= 0b0000000000000010
-            elif self.detections[i]['color'] == "Yellow":
-                self.tx_data.data |= 0b0000000000000011
+        ball_count = len(self.detections)
+        self.tx_data.data = (0b0000000000000111&ball_count)
+
+        sorted_detections = sorted(self.detections, key=lambda d: d['x'])
+        color_order = [d['color'] for d in sorted_detections]
+        self.get_logger().info(f"Color order (left to right): {color_order}")
+
+        ball_num = 0
+        for d in sorted_detections:
+            if d['color'] == "Blue":
+                self.tx_data.data |= (0b01<<(14-ball_num*2))
+            elif d['color'] == "Orange":
+                self.tx_data.data |= (0b10<<(14-ball_num*2))
+            elif d['color'] == "Yellow":
+                self.tx_data.data |= (0b11<<(14-ball_num*2))
             else:
-                self.tx_data.data |= 0b0000000000000000
+                self.tx_data.data |= (0b00<<(14-ball_num*2))
+            ball_num += 1
         self.publisher.publish(self.tx_data)
 
     def run_cv(self):

@@ -38,20 +38,29 @@ void Can_Node::can_thread(){
   while (1){
     // 受信:撮影,最も左の色送信0x01
     // 送信:青0x01 橙0x02 黄0x03
-    std::this_thread::sleep_for(std::chrono::microseconds(1000));
+    std::this_thread::sleep_for(std::chrono::microseconds(100000));
     tx_msg.data=0x00FF;
     can_read_data[0]=0x00;
     cv_flag = 0;
     can_R(1);
+    // publisher_->publish(tx_msg);
     if ((can_read_data[0]&0x01)==0x01){
       publisher_->publish(tx_msg);
       while (cv_flag != 1){}
       can_send_data[1] = 0x05;
-      can_send_data[0] = cal_data;
+      can_send_data[0] = cal_data_send;
       can_T(MOTORDRIVER4_RUN,2);
       can_read_data[0]=0x00;
       cv_flag = 0;
     }
+    // if (((can_read_data[0]>>1)&0x01)==0x01){
+    //   while (cv_flag != 1){}
+    //   can_send_data[1] = 0x05;
+    //   can_send_data[0] = cal_data;
+    //   can_T(MOTORDRIVER4_RUN,2);
+    //   can_read_data[0]=0x00;
+    //   cv_flag = 0;
+    // }
   }
 }
 
@@ -60,16 +69,21 @@ void Can_Node::callback(const std_msgs::msg::UInt16::SharedPtr msg){
   int ball_count = (rx_data&0b0000000000000111);
   cal_data = (rx_data>>14)&0b11;
   switch (cal_data&0b11){
-  case 0b00000001:
+  case 0b01:
     printf("B\r\n");
+    cal_data_send = 0x01;
     break;
-  case 0b00000010:
+  case 0b10:
+    cal_data_send = 0x02;
     printf("O\r\n");
     break;
-  case 0b00000011:
+  case 0b11:
+    cal_data_send = 0x03;
     printf("Y\r\n");
     break;
   default:
+    cal_data_send = 0x02;
+    printf("NO\r\n");
     break;
   }
   cv_flag = 1;

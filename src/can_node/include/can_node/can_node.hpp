@@ -1,10 +1,23 @@
 #pragma once
 #include "rclcpp/rclcpp.hpp"
+#include <linux/spi/spidev.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <cstring>
+#include <cstdint>
+#include <iostream>
+#include "std_msgs/msg/u_int16.hpp"
 
 class Can_Node : public rclcpp::Node{
 public:
     Can_Node();
     ~Can_Node();
+    std::thread worker_;
+    std::atomic<bool> running_;
+    rclcpp::Publisher<std_msgs::msg::UInt16>::SharedPtr publisher_;
+    rclcpp::Subscription<std_msgs::msg::UInt16>::SharedPtr subscription_;
+    
 private:
     void rpi_spi_set();
     void MCP2517FD_spi(uint8_t comand,uint16_t address,int data_langh);
@@ -15,6 +28,9 @@ private:
     void can_T(uint16_t can_id,int can_data_langh);
     void can_R(int read_data_lengh);
     void print_byte_binary(uint8_t value);
+
+    void can_thread();
+    void callback(const std_msgs::msg::UInt16::SharedPtr msg);
 
     uint8_t rx_data[20];
     uint8_t tx_data[20];

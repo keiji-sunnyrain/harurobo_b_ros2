@@ -7,15 +7,45 @@
 #include <cstring>
 #include <cstdint>
 #include <iostream>
+#include "std_msgs/msg/u_int16.hpp"
 
 Can_Node::Can_Node() : Node("can_node"){
-    RCLCPP_INFO(this->get_logger(),"Can node start");
-    MCP2517FD_set();
-    printf("setted\r\n");
+  RCLCPP_INFO(this->get_logger(),"Can node start");
+  running_ = true;
+  publisher_ =
+        this->create_publisher<std_msgs::msg::UInt16>("can_rx",10);
+  subscription_ =
+        this->create_subscription<std_msgs::msg::UInt16>("opencv_data",10,std::bind(&Can_Node::callback,this,std::placeholders::_1));
+  rpi_spi_set();
+  RCLCPP_INFO(this->get_logger(),"spi done");
+  worker_ = std::thread(&Can_Node::can_thread, this);
 }
 
 Can_Node::~Can_Node(){
-    RCLCPP_INFO(this->get_logger(),"Can node end");
+  RCLCPP_INFO(this->get_logger(),"Can node end");
+  running_ = false;
+  if (worker_.joinable()){
+    worker_.join();
+  }
+  RCLCPP_INFO(this->get_logger(),"Thread end");
+}
+
+void Can_Node::can_thread(){
+  printf("thred start\r\n");
+  MCP2517FD_set();
+  printf("setted!\r\n");
+  std_msgs::msg::UInt16 tx_msg;
+  while (1){
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
+    tx_msg=100;
+    publisher_->publish(tx_msg);
+    /* code */
+  }
+}
+
+void Can_Node::callback(const std_msgs::msg::UInt16::SharedPtr msg){
+  uint16_t rx_data = msg->data;
+  printf("%d\r\n",(int)rx_data);
 }
 
 void Can_Node::rpi_spi_set(){
@@ -37,7 +67,7 @@ void Can_Node::rpi_spi_set(){
     memset(&tr, 0, sizeof(tr));
     tr.tx_buf = (unsigned long)tx_data;
     tr.rx_buf = (unsigned long)rx_data;
-    tr.len = sizeof(tx_data);
+    // tr.len = sizeof(tx_data);
     tr.speed_hz = 10000000;
     tr.bits_per_word = 8;
 }
@@ -51,6 +81,7 @@ void Can_Node::MCP2517FD_spi(uint8_t comand,uint16_t address,int data_langh){
   for (int i = 0; i < data_langh; i++){
     tx_data[2 + i] = send_data[i];
   }
+  tr.len = send_langh;
   ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);
 }
 

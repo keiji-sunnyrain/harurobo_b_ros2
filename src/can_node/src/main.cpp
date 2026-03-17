@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include "can_node/can_node.hpp"
+#include <linux/spi/spidev.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <cstring>
+#include <cstdint>
+#include <iostream>
 
 int main(int argc,char **argv){
     rclcpp::init(argc,argv);

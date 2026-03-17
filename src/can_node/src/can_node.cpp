@@ -36,31 +36,43 @@ void Can_Node::can_thread(){
   printf("setted!\r\n");
   std_msgs::msg::UInt16 tx_msg;
   while (1){
+    // 受信:撮影,最も左の色送信0x01
+    // 送信:青0x01 橙0x02 黄0x03
     std::this_thread::sleep_for(std::chrono::microseconds(1000));
     tx_msg.data=0x00FF;
+    can_read_data[0]=0x00;
+    cv_flag = 0;
     can_R(1);
-    can_send_data[0] = 0b11110000;
-    // can_T(ANALOG,1);
-    // publisher_->publish(tx_msg);
+    if ((can_read_data[0]&0x01)==0x01){
+      publisher_->publish(tx_msg);
+      while (cv_flag != 1){}
+      can_send_data[1] = 0x05;
+      can_send_data[0] = cal_data;
+      can_T(MOTORDRIVER4_RUN,2);
+      can_read_data[0]=0x00;
+      cv_flag = 0;
+    }
   }
 }
 
 void Can_Node::callback(const std_msgs::msg::UInt16::SharedPtr msg){
   uint16_t rx_data = msg->data;
-  switch (rx_data){
-  case 0x000001:
+  int ball_count = (rx_data&0b0000000000000111);
+  cal_data = (rx_data>>14)&0b11;
+  switch (cal_data&0b11){
+  case 0b00000001:
     printf("B\r\n");
     break;
-  case 0x000010:
+  case 0b00000010:
     printf("O\r\n");
     break;
-  case 0x000011:
+  case 0b00000011:
     printf("Y\r\n");
     break;
   default:
     break;
   }
-  // printf("%d\r\n",(int)rx_data);
+  cv_flag = 1;
 }
 
 void Can_Node::rpi_spi_set(){

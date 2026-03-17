@@ -42,6 +42,9 @@ private:
     uint16_t fifo2_readable_address;//FIFO2読むべきアドレス 12bit
     uint8_t can_read_data[10];//CAN受信データ 8byte;
 
+    uint8_t cal_data;//最も左の色
+    int cv_flag;
+
     struct spi_ioc_transfer tr;
     int spi_fd;
 };

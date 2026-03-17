@@ -38,8 +38,10 @@ void Can_Node::can_thread(){
   while (1){
     std::this_thread::sleep_for(std::chrono::microseconds(1000));
     tx_msg.data=0x00FF;
-    publisher_->publish(tx_msg);
-    /* code */
+    can_R(1);
+    can_send_data[0] = 0b11110000;
+    // can_T(ANALOG,1);
+    // publisher_->publish(tx_msg);
   }
 }
 
@@ -64,8 +66,8 @@ void Can_Node::callback(const std_msgs::msg::UInt16::SharedPtr msg){
 void Can_Node::rpi_spi_set(){
     spi_fd = open("/dev/spidev0.0", O_RDWR);
     if (spi_fd < 0) {
-        std::cerr << "SPI open failed\n";
-        return;
+      std::cerr << "SPI open failed\n";
+      return;
     }
     // SPIモード
     uint8_t mode = SPI_MODE_0;
@@ -73,7 +75,7 @@ void Can_Node::rpi_spi_set(){
     // ビット幅
     uint8_t bits = 8;
     ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
-    // SPIクロック（例 10MHz）
+    // SPIクロック
     uint32_t speed = 10000000;
     ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
     // SPI転送構造体の設定
@@ -125,11 +127,17 @@ void Can_Node::MCP2517FD_set(){
   // MCP2517FD初期設定
   tx_data[1] = 0x00;
   tx_data[0] = 0x00;
+  tr.len = 2;
   ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);//リセット
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   printf("set_start\r\n");
-  std::this_thread::sleep_for(std::chrono::seconds(2));
   do {
     MCP2517FD_spi_read(C1CON,4);
+    print_byte_binary(read_data[3]);
+    print_byte_binary(read_data[2]);
+    print_byte_binary(read_data[1]);
+    print_byte_binary(read_data[0]);
+    printf("\r\n");
   }while (((read_data[2] >> 5) & 0x07) != 0b100); //OPMOD確認
   printf("done1\r\n");
   MCP2517FD_spi_read(OSC,4);//クロック設定読む
@@ -186,8 +194,8 @@ void Can_Node::MCP2517FD_set(){
     send_data[i] = 0x00;//send_data初期化
   }
   send_data[3] &= ~(1 << 6);//EXIDE=0(標準)
-  send_data[1] |= ((MOTORDRIVER4_RUN >> 8)&0b00000111);
-  send_data[0] |= ((MOTORDRIVER4_RUN >> 0)&0b11111111);//フィルタID定義
+  send_data[1] |= ((RASPI5 >> 8)&0b00000111);
+  send_data[0] |= ((RASPI5 >> 0)&0b11111111);//フィルタID定義11111111111
   MCP2517FD_spi_write(C1FLTOBJ0,4);//フィルタ設定
   for (int i = 0; i < 4; i++){
     send_data[i] = 0x00;//send_data初期化

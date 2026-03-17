@@ -13,7 +13,7 @@ Can_Node::Can_Node() : Node("can_node"){
   RCLCPP_INFO(this->get_logger(),"Can node start");
   running_ = true;
   publisher_ =
-        this->create_publisher<std_msgs::msg::UInt16>("can_rx",10);
+        this->create_publisher<std_msgs::msg::UInt16>("can_data",10);
   subscription_ =
         this->create_subscription<std_msgs::msg::UInt16>("opencv_data",10,std::bind(&Can_Node::callback,this,std::placeholders::_1));
   rpi_spi_set();
@@ -37,7 +37,7 @@ void Can_Node::can_thread(){
   std_msgs::msg::UInt16 tx_msg;
   while (1){
     std::this_thread::sleep_for(std::chrono::microseconds(500));
-    tx_msg=100;
+    tx_msg.data=0x00FF;
     publisher_->publish(tx_msg);
     /* code */
   }

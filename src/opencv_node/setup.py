@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'opencv_node = opencv_node.opencv_node:main',
         ],
     },
 )

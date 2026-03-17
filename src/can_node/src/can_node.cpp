@@ -1,15 +1,48 @@
 #include "can_node/harurobo_can_id.h"
 #include "can_node/can_node.hpp"
+#include <linux/spi/spidev.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <cstring>
+#include <cstdint>
+#include <iostream>
 
 Can_Node::Can_Node() : Node("can_node"){
     RCLCPP_INFO(this->get_logger(),"Can node start");
+    MCP2517FD_set();
+    printf("setted\r\n");
 }
 
 Can_Node::~Can_Node(){
     RCLCPP_INFO(this->get_logger(),"Can node end");
 }
 
-void MCP2517FD_spi(uint8_t comand,uint16_t address,int data_langh){
+void Can_Node::rpi_spi_set(){
+    spi_fd = open("/dev/spidev0.0", O_RDWR);
+    if (spi_fd < 0) {
+        std::cerr << "SPI open failed\n";
+        return;
+    }
+    // SPIモード
+    uint8_t mode = SPI_MODE_0;
+    ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
+    // ビット幅
+    uint8_t bits = 8;
+    ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
+    // SPIクロック（例 10MHz）
+    uint32_t speed = 10000000;
+    ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+    // SPI転送構造体の設定
+    memset(&tr, 0, sizeof(tr));
+    tr.tx_buf = (unsigned long)tx_data;
+    tr.rx_buf = (unsigned long)rx_data;
+    tr.len = sizeof(tx_data);
+    tr.speed_hz = 10000000;
+    tr.bits_per_word = 8;
+}
+
+void Can_Node::MCP2517FD_spi(uint8_t comand,uint16_t address,int data_langh){
   // MCP2517FD通信用関数 グローバル変数更新
   int send_langh = data_langh + 2; //扱うbyte数
   tx_data[0] = ((comand << 4) & 0b11110000);
@@ -18,15 +51,15 @@ void MCP2517FD_spi(uint8_t comand,uint16_t address,int data_langh){
   for (int i = 0; i < data_langh; i++){
     tx_data[2 + i] = send_data[i];
   }
-  HAL_SPI_TransmitReceive(&hspi1,tx_data,rx_data,send_langh,HAL_MAX_DELAY);
+  ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);
 }
 
-void MCP2517FD_spi_write(uint16_t address,int data_langh){
+void Can_Node::MCP2517FD_spi_write(uint16_t address,int data_langh){
   // send_data書き込み
   MCP2517FD_spi(WRITE, address, data_langh);
 }
 
-void MCP2517FD_spi_read(uint16_t address,int data_langh){
+void Can_Node::MCP2517FD_spi_read(uint16_t address,int data_langh){
   // レジスタ全体読み込み data_langh:バイト形式
   for (int i = 0; i < data_langh; i++){
     send_data[i] = DUMMY;
@@ -37,21 +70,18 @@ void MCP2517FD_spi_read(uint16_t address,int data_langh){
   }
 }
 
-void copy_data(int data_langh){
+void Can_Node::copy_data(int data_langh){
   //データコピー
   for (int i = 0; i < data_langh; i++){
     send_data[i] = read_data[i];
   }
 }
 
-void MCP2517FD_set(){
+void Can_Node::MCP2517FD_set(){
   // MCP2517FD初期設定
-  uint8_t reset_cmd[2] = {0x00,0x00};
-  uint8_t dummy_rx[1];
-  HAL_GPIO_WritePin(SPI1_cs_GPIO_Port, SPI1_cs_Pin, GPIO_PIN_RESET);
-  HAL_SPI_TransmitReceive(&hspi1, reset_cmd, dummy_rx, 2, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin(SPI1_cs_GPIO_Port, SPI1_cs_Pin, GPIO_PIN_SET);//リセット
-  HAL_Delay(100);
+  tx_data[1] = 0x00;
+  tx_data[0] = 0x00;
+  ioctl(spi_fd, SPI_IOC_MESSAGE(1), &tr);//リセット
   printf("set_start\r\n");
   do {
     MCP2517FD_spi_read(C1CON,4);
@@ -132,10 +162,9 @@ void MCP2517FD_set(){
     MCP2517FD_spi_read(C1CON,4);
   }while (((read_data[2] >> 5) & 0x07) != 0b110);
   printf("set_done\r\n");
-  HAL_Delay(100);
 }
 
-void can_T(uint16_t can_id,int can_data_langh){
+void Can_Node::can_T(uint16_t can_id,int can_data_langh){
   // can送信
   do{
     MCP2517FD_spi_read(C1FIFOSTA1,4);
@@ -177,7 +206,7 @@ void can_T(uint16_t can_id,int can_data_langh){
   printf("Sended!\r\n");
 }
 
-void can_R(int read_data_lengh){
+void Can_Node::can_R(int read_data_lengh){
   // can受信
   MCP2517FD_spi_read(C1FIFOSTA2,4);
   if (((read_data[0] & 0b00000001) == 0x01) || ((read_data[0] & 0b00000100) == 0x04)){//FIFO埋まってるか確認TFNRFNIF=1 or TFERFNIF=1
@@ -203,4 +232,12 @@ void can_R(int read_data_lengh){
   else{
     // printf("no_data\r\n");
   }
+}
+
+void Can_Node::print_byte_binary(uint8_t value){
+  //bit表示
+  for(int i = 7; i >= 0; i--){
+    printf("%d", (value >> i) & 0x01);
+  }
+  printf("\r\n");
 }

@@ -16,12 +16,13 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
-from cv_bridge import CvBridge
+# from cv_bridge import CvBridge
 
 import cv2
 import numpy as np
 import json
 from std_msgs.msg import UInt16
+import os
 
 class CameraNode(Node):
     def __init__(self):
@@ -57,14 +58,15 @@ class CameraNode(Node):
         self.kernel = np.ones((3, 3), np.uint8)
 
         # Publisher
-        self.detection_pub = self.create_publisher(String, '/ball_detections', 10)
-        self.image_pub = self.create_publisher(Image, '/camera/image_raw', 10)
+        # self.detection_pub = self.create_publisher(String, '/ball_detections', 10)
+        # self.image_pub = self.create_publisher(Image, '/camera/image_raw', 10)
 
         # CvBridge
-        self.bridge = CvBridge()
+        # self.bridge = CvBridge()
 
         # カメラオープン
-        self.cap = cv2.VideoCapture(self.camera_id)
+        # self.cap = cv2.VideoCapture(self.camera_id)
+        self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             self.get_logger().error(f'Failed to open camera {self.camera_id}')
             return
@@ -72,22 +74,33 @@ class CameraNode(Node):
 
         self.publisher = self.create_publisher(UInt16,'opencv_data',10)
         self.subscription = self.create_subscription(UInt16,'can_data',self.callback,10)
-        callback()
+        self.run_cv()
 
-    def callback(self,msg):
+    def callback(self,msg_rx):
         """ サブスクライバコールバック """
-        rx_data = msg_rx.data
+        self.rx_data = msg_rx.data
         self.get_logger().info(f"Receive: {rx_data}")
-        msgtx = UInt16()
-        msgtx.data = 0xFF00
-        self.publisher.publish(msg)
+        self.run_cv()
+        self.tx_data = UInt16()
+        if self.detections[0]['color'] == "Blue":
+            self.tx_data.data |= 0b0000000000000001
+        elif self.detections[0]['color'] == "Orange":
+            self.tx_data.data |= 0b0000000000000010
+        elif self.detections[0]['color'] == "Yellow":
+            self.tx_data.data |= 0b0000000000000011
+        else:
+            self.tx_data.data |= 0b0000000000000000
+        self.publisher.publish(tx_data)
 
     def run_cv(self):
         """フレーム取得・処理"""
         ret, frame = self.cap.read()
         if not ret:
             return
-        cv2.imwrite("data/capture.jpg", frame)
+        path = os.path.expanduser('~/harurobo_b_ws/src/opencv_node/data/capture.jpg')
+        cv2.imwrite(path, frame)
+        # cv2.imwrite("~/harurobo_b_ws/src/opencv_node/data/capture.jpg", frame)
+        self.get_logger().info(f'got frame')
 
         # BGR → HSV変換
         img_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -144,18 +157,19 @@ class CameraNode(Node):
                 cv2.putText(frame, color, text_pos,
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, draw_color, 2)
 
-                cv2.imwrite(os.path.expanduser('~/harurobo_b_ws/src/opencv_node/resalt/sphere_result.jpg'), output)
+        path = os.path.expanduser('~/harurobo_b_ws/src/opencv_node/resalt/resalt.jpg')
+        cv2.imwrite(path, frame)
 
 
-        # 検出結果をpublish（JSON）
-        msg = String()
-        msg.data = json.dumps(detections)
-        self.detection_pub.publish(msg)
+        # # 検出結果をpublish（JSON）
+        # msg = String()
+        # msg.data = json.dumps(detections)
+        # self.detection_pub.publish(msg)
 
-        # 画像をpublish
-        if self.publish_image:
-            img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-            self.image_pub.publish(img_msg)
+        # # 画像をpublish
+        # if self.publish_image:
+        #     img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+        #     self.image_pub.publish(img_msg)
 
     def destroy_node(self):
         if self.cap and self.cap.isOpened():

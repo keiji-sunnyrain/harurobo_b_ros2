@@ -35,6 +35,7 @@ void Can_Node::can_thread(){
   MCP2517FD_set();
   printf("setted!\r\n");
   std_msgs::msg::UInt16 tx_msg;
+  publisher_->publish(tx_msg);
   while (1){
     // 受信:撮影,最も左の色送信0x01
     // 送信:青0x01 橙0x02 黄0x03
@@ -43,7 +44,6 @@ void Can_Node::can_thread(){
     can_read_data[0]=0x00;
     cv_flag = 0;
     can_R(1);
-    // publisher_->publish(tx_msg);
     if ((can_read_data[0]&0x01)==0x01){
       publisher_->publish(tx_msg);
       while (cv_flag != 1){}

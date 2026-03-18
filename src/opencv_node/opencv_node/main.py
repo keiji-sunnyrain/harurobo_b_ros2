@@ -30,9 +30,10 @@ class CameraNode(Node):
 
         # パラメータ
         self.declare_parameter('camera_id', 0)
-        self.declare_parameter('min_area', 500)
-        self.declare_parameter('min_radius', 20)
-        self.declare_parameter('min_circularity', 0.4)
+        self.declare_parameter('min_area', 200)
+        self.declare_parameter('min_radius', 75)
+        # self.declare_parameter('min_circularity', 0.4)
+        self.declare_parameter('min_circularity', 0.2)
         self.declare_parameter('publish_image', True)
 
         self.camera_id = self.get_parameter('camera_id').value
@@ -48,9 +49,17 @@ class CameraNode(Node):
             # "Orange": [(0, 120, 100), (20, 255, 255)],
             # "Yellow": [(15, 150, 150), (35, 255, 255)],
 
-            "Blue":   [(95, 20, 80),  (130, 120, 200)],
-            "Orange": [(0,  80, 100), (10, 255, 230)],   
-            "Yellow": [(15, 80, 100), (35, 220, 230)],
+            # "Blue":   [(90, 10, 80),  (130, 120, 255)],
+            # "Orange": [(0,  80, 100), (13, 255, 230)],   
+            # "Yellow": [(15, 80, 100), (35, 220, 230)],
+
+            # "Blue":   [(90, 20, 50),  (130, 235, 255)],
+            # "Orange": [(0,  80, 100), (13, 255, 230)],   
+            # "Yellow": [(15, 80, 100), (35, 220, 240)],
+
+            "Blue":   [(90, 0, 0),  (130, 255, 255)],
+            "Orange": [(0,  0, 0), (13, 255, 255)],   
+            "Yellow": [(15, 0, 0), (35, 255, 255)],
         }
 
         self.color_bgr = {
@@ -60,17 +69,12 @@ class CameraNode(Node):
         }
 
         # ノイズ除去用カーネル
-        self.kernel = np.ones((3, 3), np.uint8)
-
-        # Publisher
-        # self.detection_pub = self.create_publisher(String, '/ball_detections', 10)
-        # self.image_pub = self.create_publisher(Image, '/camera/image_raw', 10)
+        self.kernel = np.ones((7, 7), np.uint8)
 
         # CvBridge
         # self.bridge = CvBridge()
 
         # カメラオープン
-        # self.cap = cv2.VideoCapture(self.camera_id)
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             self.get_logger().error(f'Failed to open camera {self.camera_id}')
@@ -85,6 +89,7 @@ class CameraNode(Node):
         """ サブスクライバコールバック """
         self.rx_data = msg_rx.data
         self.get_logger().info(f"Receive: {self.rx_data}")
+        self.run_cv()
         self.run_cv()
         self.tx_data = UInt16()
         ball_count = len(self.detections)
@@ -114,7 +119,8 @@ class CameraNode(Node):
             return
         path = os.path.expanduser('~/harurobo_b_ws/src/opencv_node/data/capture.jpg')
         cv2.imwrite(path, frame)
-        # cv2.imwrite("~/harurobo_b_ws/src/opencv_node/data/capture.jpg", frame)
+        # path = os.path.expanduser('~/harurobo_b_ws/src/opencv_node/data/capture_3.jpg')#
+        # frame = cv2.imread(path)#
         self.get_logger().info(f'got frame')
 
         # BGR → HSV変換
@@ -125,7 +131,12 @@ class CameraNode(Node):
 
         # 各色について検出
         for color, (lower, upper) in self.color_ranges.items():
-            mask = cv2.inRange(img_hsv, np.array(lower), np.array(upper))
+            if color == "Orange":
+                mask1 = cv2.inRange(img_hsv,np.array([0,0,0]),np.array([15,255,255]))
+                mask2 = cv2.inRange(img_hsv,np.array([160,0,0]),np.array([180,255,255]))
+                mask = cv2.bitwise_or(mask1,mask2)
+            else:
+                mask = cv2.inRange(img_hsv, np.array(lower), np.array(upper))
 
             # モルフォロジー処理
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, self.kernel)

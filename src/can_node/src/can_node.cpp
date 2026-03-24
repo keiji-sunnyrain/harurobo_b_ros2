@@ -44,7 +44,8 @@ void Can_Node::can_thread(){
     can_read_data[0]=0x00;
     cv_flag = 0;
     can_R(1);
-    if ((can_read_data[0]&0x01)==0x01){
+    if ((can_read_data[0]&0b00000001)==0b00000001){
+      printf("read!\r\n");
       publisher_->publish(tx_msg);
       while (cv_flag != 1){}
       can_send_data[1] = 0x05;

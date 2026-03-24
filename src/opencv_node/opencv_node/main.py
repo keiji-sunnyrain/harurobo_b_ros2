@@ -33,7 +33,7 @@ class CameraNode(Node):
         self.declare_parameter('min_area', 200)
         self.declare_parameter('min_radius', 75)
         # self.declare_parameter('min_circularity', 0.4)
-        self.declare_parameter('min_circularity', 0.2)
+        self.declare_parameter('min_circularity', 0.34)
         self.declare_parameter('publish_image', True)
 
         self.camera_id = self.get_parameter('camera_id').value
@@ -109,7 +109,8 @@ class CameraNode(Node):
                 self.tx_data.data |= (0b11<<(14-ball_num*2))
             else:
                 self.tx_data.data |= (0b00<<(14-ball_num*2))
-            ball_num += 1
+            if ball_num < 3:
+                ball_num += 1
         self.publisher.publish(self.tx_data)
 
     def run_cv(self):
